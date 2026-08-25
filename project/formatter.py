@@ -13,6 +13,48 @@ MIN_PARAGRAPH_LENGTH = 40
 DUPLICATE_INTRO_MAX_LENGTH = 220
 DUPLICATE_INTRO_MIN_SHARED_WORDS = 5
 DUPLICATE_INTRO_OVERLAP = 0.70
+BRAND_HASHTAG = "#ЗвёздныеБудни"
+
+EDITORIAL_HASHTAGS = {
+    "scandals_conflicts": (
+        "#ЗвёздныеРазборки",
+        "#ГромкийСкандал",
+    ),
+    "relationships": (
+        "#ЛюбовьИДрама",
+        "#ЗвёздныйРоман",
+    ),
+    "legal_trouble": (
+        "#СудИДрама",
+        "#ЗвёздныйСуд",
+    ),
+    "money_property": (
+        "#ДеньгиЗвёзд",
+        "#НаследствоИДрама",
+    ),
+    "public_statements": (
+        "#ЖёсткоеЗаявление",
+        "#СказаноГромко",
+    ),
+    "unusual_behavior": (
+        "#НеожиданныйПоворот",
+        "#ВсеОбсуждают",
+    ),
+    "incidents": (
+        "#ГромкоеСобытие",
+        "#ЧтоПроизошло",
+    ),
+}
+
+HASHTAG_CATEGORY_PRIORITY = (
+    "scandals_conflicts",
+    "legal_trouble",
+    "relationships",
+    "unusual_behavior",
+    "money_property",
+    "public_statements",
+    "incidents",
+)
 
 WORD_PATTERN = re.compile(r"[0-9a-zа-яё]+", re.IGNORECASE)
 TITLE_STOP_WORDS = {
@@ -78,7 +120,8 @@ def _format(news_item, limit, complete_paragraphs):
         if url
         else "🔗 Читать источник"
     )
-    footer = f"📰 {source}\n{link}"
+    hashtags = " ".join(_editorial_hashtags(news_item))
+    footer = f"{hashtags}\n\n📰 {source}\n{link}"
 
     title_budget = max(
         0,
@@ -112,6 +155,36 @@ def _format(news_item, limit, complete_paragraphs):
         return f"{header}\n\n{escape(summary)}\n\n{footer}"
 
     return f"{header}\n\n{footer}"
+
+
+def _editorial_hashtags(news_item):
+    """Return the channel tag plus up to two strongest editorial tags."""
+
+    topics = news_item.get("matched_topics") or []
+    if isinstance(topics, str):
+        topics = [topics]
+
+    categories = set(topics)
+    event_category = news_item.get("event_category")
+    if event_category:
+        categories.add(event_category)
+
+    ordered = [
+        category
+        for category in HASHTAG_CATEGORY_PRIORITY
+        if category in categories
+    ]
+
+    if len(ordered) == 1:
+        thematic = EDITORIAL_HASHTAGS[ordered[0]]
+    else:
+        thematic = tuple(
+            EDITORIAL_HASHTAGS[category][0]
+            for category in ordered[:2]
+        )
+
+    # Preserve editorial order while protecting against repeated mappings.
+    return list(dict.fromkeys((BRAND_HASHTAG, *thematic)))
 
 
 def _fit_complete_paragraphs(summary, max_escaped_length):

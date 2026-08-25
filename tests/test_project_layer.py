@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 
 from article.fetcher import clean_article_text
@@ -77,11 +78,73 @@ def test_formatter_extracts_article_paragraphs_and_keeps_source_footer():
     assert "📰 StarHit" in post
     assert "Читать источник" in post
     assert 'href="https://example.test/item"' in post
+    assert "#ЗвёздныеБудни" in post
+    assert post.index("По словам близких") < post.index("#ЗвёздныеБудни")
+    assert post.index("#ЗвёздныеБудни") < post.index("📰 StarHit")
+
+
+def test_formatter_adds_scandal_editorial_hashtags():
+    news = item("Артисты устроили громкий публичный конфликт")
+    news["matched_topics"] = ["scandals_conflicts"]
+    news["event_category"] = "scandals_conflicts"
+
+    caption = format_photo_caption(news)
+
+    assert "#ЗвёздныеБудни" in caption
+    assert "#ЗвёздныеРазборки" in caption
+    assert "#ГромкийСкандал" in caption
+
+
+def test_formatter_adds_relationship_editorial_hashtags():
+    news = item("Пара рассказала о завершившемся романе")
+    news["matched_topics"] = ["relationships"]
+    news["event_category"] = "relationships"
+
+    caption = format_photo_caption(news)
+
+    assert "#ЛюбовьИДрама" in caption
+    assert "#ЗвёздныйРоман" in caption
+
+
+def test_formatter_limits_multiple_topics_to_two_strongest_tags():
+    news = item("Селебрити рассказали о громкой истории")
+    news["matched_topics"] = [
+        "incidents",
+        "public_statements",
+        "relationships",
+        "scandals_conflicts",
+    ]
+
+    caption = format_photo_caption(news)
+    hashtags = re.findall(r"#[\wА-Яа-яЁё]+", caption)
+
+    assert hashtags == [
+        "#ЗвёздныеБудни",
+        "#ЗвёздныеРазборки",
+        "#ЛюбовьИДрама",
+    ]
+
+
+def test_formatter_deduplicates_repeated_topic_hashtags():
+    news = item("Артисты снова публично поссорились")
+    news["matched_topics"] = [
+        "scandals_conflicts",
+        "scandals_conflicts",
+    ]
+    news["event_category"] = "scandals_conflicts"
+
+    caption = format_photo_caption(news)
+
+    assert caption.count("#ЗвёздныеБудни") == 1
+    assert caption.count("#ЗвёздныеРазборки") == 1
+    assert caption.count("#ГромкийСкандал") == 1
 
 
 def test_photo_caption_stays_inside_safe_limit():
     news = item("Громкий конфликт двух артистов")
     news["source"] = "StarHit"
+    news["matched_topics"] = ["scandals_conflicts", "relationships"]
+    news["event_category"] = "scandals_conflicts"
     first = (
         "Первый абзац: "
         + "важный <факт> & подтвержденный контекст. " * 6
@@ -106,6 +169,9 @@ def test_photo_caption_stays_inside_safe_limit():
     assert "Третий длинный абзац:" not in caption
     assert "важный &lt;факт&gt; &amp; подтвержденный контекст" in caption
     assert "…" not in caption
+    assert "#ЗвёздныеБудни" in caption
+    assert "#ЗвёздныеРазборки" in caption
+    assert "#ЛюбовьИДрама" in caption
     assert "Читать источник" in caption
 
 
