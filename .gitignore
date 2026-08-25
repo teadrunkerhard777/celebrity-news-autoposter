@@ -6,5 +6,3 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
-
-storage/published.json
