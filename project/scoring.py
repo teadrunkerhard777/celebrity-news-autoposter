@@ -43,6 +43,7 @@ CELEBRITY_CONTEXT_KEYWORDS = (
 
 CELEBRITY_CONTEXT_BONUS = 1
 NON_CELEBRITY_INCIDENT_PENALTY = 3
+MAX_NON_CELEBRITY_CRIME_SCORE = 3
 
 INTEREST_BONUSES = {
     "scandal": (3, ("скандал",)),
@@ -156,7 +157,7 @@ def calculate_score(news_item):
         MAX_LIFESTYLE_PENALTY,
     )
     celebrity_bonus = CELEBRITY_CONTEXT_BONUS if has_celebrity_context else 0
-    return max(
+    score = max(
         0,
         topic_score
         + interest_score
@@ -164,3 +165,11 @@ def calculate_score(news_item):
         - incident_penalty
         - lifestyle_penalty,
     )
+    has_crime_or_incident = any(
+        topic in matched_topics
+        for topic in ("legal_trouble", "incidents")
+    )
+    if has_crime_or_incident and not has_celebrity_context:
+        # Non-celebrity crime stays below genuine celebrity events.
+        return min(score, MAX_NON_CELEBRITY_CRIME_SCORE)
+    return score
