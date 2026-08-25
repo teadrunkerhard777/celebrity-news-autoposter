@@ -58,16 +58,16 @@ PHOTO_CREDIT_SOURCES = (
 def format_post(news_item):
     """Build one HTML-safe text message."""
 
-    return _format(news_item, MESSAGE_LIMIT)
+    return _format(news_item, MESSAGE_LIMIT, complete_paragraphs=False)
 
 
 def format_photo_caption(news_item):
     """Build one shorter HTML-safe photo caption."""
 
-    return _format(news_item, PHOTO_CAPTION_LIMIT)
+    return _format(news_item, PHOTO_CAPTION_LIMIT, complete_paragraphs=True)
 
 
-def _format(news_item, limit):
+def _format(news_item, limit, complete_paragraphs):
     source_text = " ".join(
         str(news_item.get("source") or "Источник").split()
     )
@@ -101,15 +101,33 @@ def _format(news_item, limit):
         body,
         news_item.get("title", ""),
     )
-    summary = fit_text_to_html_limit(
-        summary,
-        max(0, limit - fixed_length),
-    )
+    body_budget = max(0, limit - fixed_length)
+
+    if complete_paragraphs:
+        summary = _fit_complete_paragraphs(summary, body_budget)
+    else:
+        summary = fit_text_to_html_limit(summary, body_budget)
 
     if summary:
         return f"{header}\n\n{escape(summary)}\n\n{footer}"
 
     return f"{header}\n\n{footer}"
+
+
+def _fit_complete_paragraphs(summary, max_escaped_length):
+    """Keep whole paragraphs in order until the next one would overflow."""
+
+    selected = []
+
+    for paragraph in summary.split("\n\n"):
+        candidate = "\n\n".join((*selected, paragraph))
+
+        if len(escape(candidate)) > max_escaped_length:
+            break
+
+        selected.append(paragraph)
+
+    return "\n\n".join(selected)
 
 
 def _extract_summary(text, title):

@@ -82,16 +82,49 @@ def test_formatter_extracts_article_paragraphs_and_keeps_source_footer():
 def test_photo_caption_stays_inside_safe_limit():
     news = item("Громкий конфликт двух артистов")
     news["source"] = "StarHit"
-    news["article_text"] = "\n\n".join(
-        f"Абзац {number}: " + "важная подробность " * 80
-        for number in range(1, 6)
+    first = (
+        "Первый абзац: "
+        + "важный <факт> & подтвержденный контекст. " * 6
+        + "Первый абзац завершен."
     )
+    second = (
+        "Второй абзац: "
+        + "дополнительная важная подробность события. " * 5
+        + "Второй абзац завершен."
+    )
+    long_third = (
+        "Третий длинный абзац: "
+        + "эта часть не должна обрезаться посередине мысли. " * 20
+    )
+    news["article_text"] = "\n\n".join((first, second, long_third))
 
     caption = format_photo_caption(news)
 
     assert len(caption) <= 1000
-    assert "Абзац 4:" not in caption
+    assert "Первый абзац завершен." in caption
+    assert "Второй абзац завершен." in caption
+    assert "Третий длинный абзац:" not in caption
+    assert "важный &lt;факт&gt; &amp; подтвержденный контекст" in caption
+    assert "…" not in caption
     assert "Читать источник" in caption
+
+
+def test_photo_caption_adds_short_third_paragraph_when_it_fits():
+    news = item("Артисты рассказали о завершившемся конфликте")
+    news["source"] = "Super"
+    news["article_text"] = """Первый абзац содержит основную подтвержденную информацию о событии.
+
+Второй абзац добавляет важный контекст и объясняет позицию участников.
+
+Третий короткий абзац содержит заключительный существенный факт.
+"""
+
+    caption = format_photo_caption(news)
+
+    assert "Первый абзац содержит" in caption
+    assert "Второй абзац добавляет" in caption
+    assert "Третий короткий абзац содержит" in caption
+    assert len(caption) <= 1000
 
 
 def test_formatter_falls_back_to_description_without_article_text():
