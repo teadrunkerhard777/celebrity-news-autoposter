@@ -45,20 +45,58 @@ def test_project_scoring_is_applied_by_generic_core():
     assert filter_by_minimum_score(news, 4) == [strong]
 
 
-def test_formatter_escapes_html_and_keeps_project_footer():
-    news = item("Python <release>", "Safer & faster")
-    news["matched_topics"] = ["python"]
+def test_formatter_extracts_article_paragraphs_and_keeps_source_footer():
+    news = item(
+        "Звезда <ответила> бывшему мужу",
+        "Короткое RSS-описание не должно использоваться.",
+    )
+    news["source"] = "StarHit"
+    news["article_text"] = """Фото, видео: соцсети
+
+Актриса публично ответила бывшему мужу & рассказала о конфликте.
+
+Анна Иванова Фото: личный архив
+
+«Я больше не намерена молчать», — заявила артистка журналистам.
+
+По словам близких, спор начался несколько недель назад и стал публичным.
+
+Четвертый содержательный абзац не должен попасть в короткую выжимку.
+"""
 
     post = format_post(news)
 
-    assert "Python &lt;release&gt;" in post
-    assert "Safer &amp; faster" in post
-    assert "#python" in post
+    assert "Звезда &lt;ответила&gt; бывшему мужу" in post
+    assert "ответила бывшему мужу &amp; рассказала" in post
+    assert "Короткое RSS-описание" not in post
+    assert "Фото, видео" not in post
+    assert "Фото: личный архив" not in post
+    assert "Четвертый содержательный абзац" not in post
+    assert "📰 StarHit" in post
+    assert "Читать источник" in post
     assert 'href="https://example.test/item"' in post
 
 
 def test_photo_caption_stays_inside_safe_limit():
-    news = item("Python release", "word " * 1000)
-    news["matched_topics"] = ["python"]
+    news = item("Громкий конфликт двух артистов")
+    news["source"] = "StarHit"
+    news["article_text"] = "\n\n".join(
+        f"Абзац {number}: " + "важная подробность " * 80
+        for number in range(1, 6)
+    )
 
-    assert len(format_photo_caption(news)) <= 1000
+    caption = format_photo_caption(news)
+
+    assert len(caption) <= 1000
+    assert "Абзац 4:" not in caption
+    assert "Читать источник" in caption
+
+
+def test_formatter_falls_back_to_description_without_article_text():
+    news = item("Певица сделала заявление", "Описание события из RSS & ленты.")
+    news["source"] = "StarHit"
+    news["article_text"] = "   "
+
+    caption = format_photo_caption(news)
+
+    assert "Описание события из RSS &amp; ленты." in caption
