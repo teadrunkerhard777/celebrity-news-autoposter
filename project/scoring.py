@@ -44,6 +44,7 @@ CELEBRITY_CONTEXT_KEYWORDS = (
 CELEBRITY_CONTEXT_BONUS = 1
 NON_CELEBRITY_INCIDENT_PENALTY = 3
 MAX_NON_CELEBRITY_CRIME_SCORE = 3
+MAX_NON_CELEBRITY_CONFLICT_SCORE = 1
 
 INTEREST_BONUSES = {
     "scandal": (3, ("скандал",)),
@@ -172,4 +173,10 @@ def calculate_score(news_item):
     if has_crime_or_incident and not has_celebrity_context:
         # Non-celebrity crime stays below genuine celebrity events.
         return min(score, MAX_NON_CELEBRITY_CRIME_SCORE)
+    if (
+        set(matched_topics) == {"scandals_conflicts"}
+        and not has_celebrity_context
+    ):
+        # A generic dispute alone should not rank as celebrity entertainment.
+        return min(score, MAX_NON_CELEBRITY_CONFLICT_SCORE)
     return score

@@ -53,3 +53,13 @@ def test_filter_rejects_broad_entertainment_phrases_without_event():
 
     assert not is_relevant(news_item)
     assert news_item["matched_topics"] == []
+
+
+def test_filter_does_not_treat_seasonal_farewell_as_incident():
+    news_item = {
+        "title": "Звезды прощаются с летом",
+        "description": "Артисты публикуют фотографии из последних поездок.",
+    }
+
+    assert not is_relevant(news_item)
+    assert news_item["matched_topics"] == []

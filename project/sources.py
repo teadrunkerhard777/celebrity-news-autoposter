@@ -36,10 +36,17 @@ SOURCES = [
         },
         "retries": 3,
     },
+    {
+        "name": "Woman.ru",
+        "type": "rss",
+        "url": "https://www.woman.ru/rss-feeds/rss.xml",
+        "enabled": True,
+    },
 ]
 
 # A project can register a reliable body extractor without changing core code.
 SOURCE_EXTRACTORS = {}
 SOURCE_STOP_MARKERS = {
     "Super": ("Читайте также:",),
+    "Woman.ru": ("Фото:",),
 }

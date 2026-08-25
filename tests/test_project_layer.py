@@ -10,7 +10,7 @@ from processing.filters import (
 from project.filters import is_relevant
 from project.formatter import format_photo_caption, format_post
 from project.scoring import calculate_score
-from project.sources import SOURCE_STOP_MARKERS
+from project.sources import SOURCES, SOURCE_EXTRACTORS, SOURCE_STOP_MARKERS
 
 
 def item(title, description=""):
@@ -46,6 +46,21 @@ def test_project_scoring_is_applied_by_generic_core():
     assert strong["score"] > weak["score"]
     assert non_celebrity_crime["score"] == 3
     assert filter_by_minimum_score(news, 4) == [strong]
+
+
+def test_non_celebrity_conflict_stays_below_publication_threshold():
+    news = item(
+        "8 главных причин стресса у школьников",
+        "Материал разбирает конфликты с одноклассниками и учебную нагрузку.",
+    )
+
+    assert is_relevant(news)
+    assert news["matched_topics"] == ["scandals_conflicts"]
+
+    add_scores([news], calculate_score)
+
+    assert news["score"] == 1
+    assert filter_by_minimum_score([news], 2) == []
 
 
 def test_formatter_extracts_article_paragraphs_and_keeps_source_footer():
@@ -262,3 +277,29 @@ def test_super_stop_marker_removes_read_more_block():
     )
 
     assert cleaned == "Первый содержательный абзац."
+
+
+def test_woman_ru_uses_official_rss_and_photo_credit_stop_marker():
+    source = next(item for item in SOURCES if item["name"] == "Woman.ru")
+
+    assert source == {
+        "name": "Woman.ru",
+        "type": "rss",
+        "url": "https://www.woman.ru/rss-feeds/rss.xml",
+        "enabled": True,
+    }
+    assert "Woman.ru" not in SOURCE_EXTRACTORS
+
+    text = """Содержательный абзац статьи.
+
+Фото: редакция Woman.ru, соцсети
+
+Служебный хвост не должен сохраниться.
+"""
+    cleaned = clean_article_text(
+        text,
+        source="Woman.ru",
+        source_stop_markers=SOURCE_STOP_MARKERS,
+    )
+
+    assert cleaned == "Содержательный абзац статьи."
