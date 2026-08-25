@@ -20,22 +20,29 @@ def item(title, description=""):
     }
 
 
-def test_project_filter_accepts_technology_and_rejects_unrelated_news():
-    accepted = item("Python gets a new testing tool")
-    rejected = item("Council changes parking rules")
+def test_project_filter_accepts_celebrity_event_and_rejects_lifestyle_news():
+    accepted = item("Певица рассказала о разводе после измены")
+    rejected = item("Певица показала новый образ для фотосессии")
 
     assert filter_relevant([accepted, rejected], is_relevant) == [accepted]
-    assert accepted["event_category"] == "python"
+    assert accepted["matched_topics"] == ["relationships"]
+    assert accepted["event_category"] == "relationships"
     assert rejected["matched_topics"] == []
 
 
 def test_project_scoring_is_applied_by_generic_core():
-    news = item("Python open-source test runner")
-    is_relevant(news)
-    add_scores([news], calculate_score)
+    strong = item("Актриса подала в суд после обвинений в конфликте")
+    weak = item("Актер попал в аварию")
+    non_celebrity_crime = item("После суда задержали мужа с любовницей")
+    news = [strong, weak, non_celebrity_crime]
 
-    assert news["score"] == 6
-    assert filter_by_minimum_score([news], 2) == [news]
+    for news_item in news:
+        is_relevant(news_item)
+    add_scores(news, calculate_score)
+
+    assert strong["score"] > weak["score"]
+    assert non_celebrity_crime["score"] == 3
+    assert filter_by_minimum_score(news, 4) == [strong]
 
 
 def test_formatter_escapes_html_and_keeps_project_footer():
@@ -55,4 +62,3 @@ def test_photo_caption_stays_inside_safe_limit():
     news["matched_topics"] = ["python"]
 
     assert len(format_photo_caption(news)) <= 1000
-
