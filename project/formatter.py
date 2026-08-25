@@ -1,5 +1,6 @@
 """Telegram presentation for the celebrity-news project."""
 
+import re
 from html import escape
 
 from generation.text import fit_text_to_html_limit
@@ -9,6 +10,24 @@ MESSAGE_LIMIT = 4000
 PHOTO_CAPTION_LIMIT = 1000
 SUMMARY_PARAGRAPH_LIMIT = 3
 MIN_PARAGRAPH_LENGTH = 40
+DUPLICATE_INTRO_MAX_LENGTH = 220
+DUPLICATE_INTRO_MIN_SHARED_WORDS = 5
+DUPLICATE_INTRO_OVERLAP = 0.70
+
+WORD_PATTERN = re.compile(r"[0-9a-zа-яё]+", re.IGNORECASE)
+TITLE_STOP_WORDS = {
+    "без",
+    "был",
+    "была",
+    "для",
+    "его",
+    "как",
+    "кто",
+    "она",
+    "они",
+    "что",
+    "это",
+}
 
 TECHNICAL_PREFIXES = (
     "фото:",
@@ -99,6 +118,7 @@ def _extract_summary(text, title):
     title_text = " ".join(str(title or "").split()).casefold()
     useful = []
     fallback = []
+    intro_checked = False
 
     for raw_paragraph in str(text or "").splitlines():
         paragraph = " ".join(raw_paragraph.split())
@@ -108,11 +128,18 @@ def _extract_summary(text, title):
         if paragraph.casefold() == title_text:
             continue
 
-        fallback.append(paragraph)
         is_quote = paragraph.startswith(("«", '"', "“"))
 
-        if len(paragraph) < MIN_PARAGRAPH_LENGTH and not is_quote:
+        if not intro_checked and _is_title_like_intro(paragraph, title_text):
+            intro_checked = True
             continue
+
+        if len(paragraph) < MIN_PARAGRAPH_LENGTH and not is_quote:
+            fallback.append(paragraph)
+            continue
+
+        if not intro_checked:
+            intro_checked = True
 
         useful.append(paragraph)
         if len(useful) == SUMMARY_PARAGRAPH_LIMIT:
@@ -120,6 +147,32 @@ def _extract_summary(text, title):
 
     selected = useful or fallback[:SUMMARY_PARAGRAPH_LIMIT]
     return "\n\n".join(selected)
+
+
+def _is_title_like_intro(paragraph, title):
+    """Return true for a short first paragraph that mostly repeats the title."""
+
+    if len(paragraph) > DUPLICATE_INTRO_MAX_LENGTH:
+        return False
+
+    title_words = _meaningful_words(title)
+    paragraph_words = _meaningful_words(paragraph)
+    shared_words = title_words & paragraph_words
+    shorter_size = min(len(title_words), len(paragraph_words))
+
+    return (
+        len(shared_words) >= DUPLICATE_INTRO_MIN_SHARED_WORDS
+        and shorter_size > 0
+        and len(shared_words) / shorter_size >= DUPLICATE_INTRO_OVERLAP
+    )
+
+
+def _meaningful_words(text):
+    return {
+        word.casefold()
+        for word in WORD_PATTERN.findall(str(text or ""))
+        if len(word) > 2 and word.casefold() not in TITLE_STOP_WORDS
+    }
 
 
 def _is_technical_paragraph(paragraph):

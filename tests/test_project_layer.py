@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from article.fetcher import clean_article_text
 from processing.filters import (
     add_scores,
     filter_by_minimum_score,
@@ -8,6 +9,7 @@ from processing.filters import (
 from project.filters import is_relevant
 from project.formatter import format_photo_caption, format_post
 from project.scoring import calculate_score
+from project.sources import SOURCE_STOP_MARKERS
 
 
 def item(title, description=""):
@@ -100,3 +102,64 @@ def test_formatter_falls_back_to_description_without_article_text():
     caption = format_photo_caption(news)
 
     assert "Описание события из RSS &amp; ленты." in caption
+
+
+def test_formatter_skips_exact_title_repeat():
+    title = "Певица рассказала о причинах громкого развода"
+    news = item(title)
+    news["source"] = "Super"
+    news["article_text"] = f"""{title}
+
+Близкие пары объяснили, что конфликт продолжался несколько месяцев.
+"""
+
+    caption = format_photo_caption(news)
+
+    assert caption.count(title) == 1
+    assert "конфликт продолжался несколько месяцев" in caption
+
+
+def test_formatter_skips_short_intro_similar_to_title():
+    news = item(
+        "Отар Кушанашвили резко осудил тех, кто выступает за отмену концерта Канье Уэста"
+    )
+    news["source"] = "Super"
+    news["article_text"] = """Отар Кушанашвили раскритиковал выступивших за отмену концерта Канье Уэста
+
+Журналист объяснил свою позицию и рассказал, почему не поддерживает запрет.
+"""
+
+    caption = format_photo_caption(news)
+
+    assert "раскритиковал выступивших" not in caption
+    assert "Журналист объяснил свою позицию" in caption
+    assert len(caption) <= 1000
+
+
+def test_formatter_keeps_distinct_first_article_paragraph():
+    news = item("Актриса объявила о разводе после десяти лет брака")
+    news["source"] = "Super"
+    news["article_text"] = (
+        "По словам адвоката, документы были поданы в суд еще на прошлой неделе."
+    )
+
+    caption = format_photo_caption(news)
+
+    assert "По словам адвоката, документы были поданы" in caption
+
+
+def test_super_stop_marker_removes_read_more_block():
+    text = """Первый содержательный абзац.
+
+Читайте также: другие новости о звездах
+
+Этот текст после маркера не должен сохраниться.
+"""
+
+    cleaned = clean_article_text(
+        text,
+        source="Super",
+        source_stop_markers=SOURCE_STOP_MARKERS,
+    )
+
+    assert cleaned == "Первый содержательный абзац."

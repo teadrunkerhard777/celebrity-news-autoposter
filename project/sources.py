@@ -40,4 +40,6 @@ SOURCES = [
 
 # A project can register a reliable body extractor without changing core code.
 SOURCE_EXTRACTORS = {}
-SOURCE_STOP_MARKERS = {}
+SOURCE_STOP_MARKERS = {
+    "Super": ("Читайте также:",),
+}
