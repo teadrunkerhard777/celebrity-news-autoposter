@@ -1,6 +1,8 @@
 import re
 from datetime import datetime, timezone
 
+from bs4 import BeautifulSoup
+
 from article.fetcher import clean_article_text
 from processing.filters import (
     add_scores,
@@ -61,6 +63,19 @@ def test_non_celebrity_conflict_stays_below_publication_threshold():
 
     assert news["score"] == 1
     assert filter_by_minimum_score([news], 2) == []
+
+
+def test_filter_accepts_neutral_7days_event_wording():
+    legal = item("Адвокат раскрыл подробности суда по делу об имуществе")
+    incident = item("ЧП на репетиции: артист пострадал после падения")
+    conflict = item("Певица отчитала коллегу после выступления")
+
+    assert is_relevant(legal)
+    assert legal["matched_topics"] == ["legal_trouble"]
+    assert is_relevant(incident)
+    assert incident["matched_topics"] == ["incidents"]
+    assert is_relevant(conflict)
+    assert conflict["matched_topics"] == ["scandals_conflicts"]
 
 
 def test_formatter_extracts_article_paragraphs_and_keeps_source_footer():
@@ -299,6 +314,42 @@ def test_woman_ru_uses_official_rss_and_photo_credit_stop_marker():
     cleaned = clean_article_text(
         text,
         source="Woman.ru",
+        source_stop_markers=SOURCE_STOP_MARKERS,
+    )
+
+    assert cleaned == "Содержательный абзац статьи."
+
+
+def test_7days_uses_stars_rss_and_removes_related_story_tail():
+    source = next(item for item in SOURCES if item["name"] == "7Дней.ru")
+
+    assert source == {
+        "name": "7Дней.ru",
+        "type": "rss",
+        "url": "https://7days.ru/rss/section/stars",
+        "enabled": True,
+        "retries": 3,
+    }
+
+    mojibake = (
+        "ÐÐµÐ²Ð¸ÑÐ° ÑÐ°ÑÑÐºÐ°Ð·Ð°Ð»Ð° "
+        "о Ð½Ð°ÑÐ»ÐµÐ´ÑÑÐ²Ðµ Ð§ÐµÑ\x85Ð¾Ð²Ð°.Â\xa0"
+    )
+    soup = BeautifulSoup(f"<article><p>{mojibake}</p></article>", "html.parser")
+
+    assert SOURCE_EXTRACTORS["7Дней.ru"](soup) == (
+        "Певица рассказала о наследстве Чехова."
+    )
+
+    text = """Содержательный абзац статьи.
+
+Ранее мы писали, что история получила продолжение.
+
+Связанный материал не должен сохраниться.
+"""
+    cleaned = clean_article_text(
+        text,
+        source="7Дней.ru",
         source_stop_markers=SOURCE_STOP_MARKERS,
     )
 
