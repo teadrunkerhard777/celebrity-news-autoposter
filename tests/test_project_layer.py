@@ -65,23 +65,19 @@ def test_non_celebrity_conflict_stays_below_publication_threshold():
     assert filter_by_minimum_score([news], 2) == []
 
 
-def test_sports_official_incident_stays_below_publication_threshold():
+def test_sports_official_death_is_rejected_before_scoring():
     news = item(
         "47-летний регбийный судья найден мертвым в квартире",
         "Спортсмен скончался в Москве, обстоятельства выясняются.",
     )
 
-    assert is_relevant(news)
-    assert news["matched_topics"] == ["incidents"]
-
-    add_scores([news], calculate_score)
-
-    assert news["score"] == 0
-    assert filter_by_minimum_score([news], 2) == []
+    assert not is_relevant(news)
+    assert news["matched_topics"] == []
+    assert news["event_category"] is None
 
 
 def test_celebrity_incident_still_reaches_publication_threshold():
-    news = item("Известный певец скончался после тяжелой болезни")
+    news = item("Известный певец попал в больницу после падения")
 
     assert is_relevant(news)
     add_scores([news], calculate_score)

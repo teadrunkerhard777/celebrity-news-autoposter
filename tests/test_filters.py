@@ -30,10 +30,6 @@ from project.filters import is_relevant
             "Маша Миногарова наступила на разбитый бокал: страшнейшее ранение",
             "incidents",
         ),
-        (
-            "Илана Дылдина вышла на связь: «Лети на небо, наш ангел»",
-            "incidents",
-        ),
     ),
 )
 def test_filter_accepts_neutral_celebrity_vocabulary(title, expected_topic):
@@ -63,3 +59,40 @@ def test_filter_does_not_treat_seasonal_farewell_as_incident():
 
     assert not is_relevant(news_item)
     assert news_item["matched_topics"] == []
+
+
+@pytest.mark.parametrize(
+    "title",
+    (
+        "Умер актер после тяжелой болезни",
+        "Актер умер.",
+        "Известна причина смерти артиста",
+        "Скончалась певица после госпитализации",
+        "Регбийный судья найден мертвым в квартире",
+        "Стало известно о похоронах звезды",
+        "Илана вышла на связь: «Лети на небо, наш ангел»",
+    ),
+)
+def test_filter_rejects_death_news_before_scoring(title):
+    news_item = {"title": title, "description": ""}
+
+    assert not is_relevant(news_item)
+    assert news_item["matched_topics"] == []
+    assert news_item["event_category"] is None
+    assert news_item["event_locations"] == []
+
+
+@pytest.mark.parametrize(
+    "title",
+    (
+        "Певица попала в больницу после падения",
+        "Актера избили после конфликта",
+        "Звезда рассказала о тяжелой болезни",
+        "Артист попал в ДТП",
+    ),
+)
+def test_filter_keeps_non_death_celebrity_incidents(title):
+    news_item = {"title": title, "description": ""}
+
+    assert is_relevant(news_item)
+    assert "incidents" in news_item["matched_topics"]

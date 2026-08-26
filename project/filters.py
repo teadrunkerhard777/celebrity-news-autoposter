@@ -1,5 +1,29 @@
 """Celebrity-news relevance rules and event categorization."""
 
+import re
+
+
+DEATH_EXCLUDE_PATTERNS = (
+    r"\bумер(?:ла|ли|ло)?\b",
+    r"\bумерш\w*\b",
+    r"\bскончал\w*\b",
+    r"\bпогиб\w*\b",
+    r"\bгибел\w*\b",
+    r"\bкончин\w*\b",
+    r"\b(?:найден|найдена|нашли)\s+мертв\w*\b",
+    r"\bсмерт(?:ь|и|ью)\b",
+    r"\bне стало\b",
+    r"\bуш(?:ел|ёл|ла|ли) из жизни\b",
+    r"\bпохорон\w*\b",
+    r"\bхоронить\b",
+    r"\bпрости(?:лись|лся|лась)\b",
+    r"\bпрощани\w*\b",
+    r"\bтело (?:обнаружили|нашли)\b",
+    r"\bобнаружили тело\b",
+    r"\bмертв\w* обнаружили\b",
+    r"\bлети на небо\b",
+)
+
 
 TOPIC_KEYWORDS = {
     "legal_trouble": (
@@ -53,31 +77,24 @@ TOPIC_KEYWORDS = {
         "пострадал",
         "пострадала",
         "госпитализ",
+        "попал в больницу",
+        "попала в больницу",
+        "тяжелая болезн",
+        "тяжёлая болезн",
+        "тяжелой болезн",
+        "тяжёлой болезн",
         "ограб",
         "пожар",
         "пропал без вести",
         "пропала без вести",
         "несчастный случай",
-        "умер ",
-        "умерла",
-        "скончал",
-        "погиб",
-        "смерт",
         "трагеди",
-        "хорон",
         "реанимац",
         "травм",
         "падени",
         "отрубил",
         "отрубила",
         "ранени",
-        "прощани",
-        "простилась",
-        "простился",
-        "ушел из жизни",
-        "ушёл из жизни",
-        "ушла из жизни",
-        "лети на небо",
     ),
     "relationships": (
         "расстались",
@@ -219,6 +236,14 @@ def is_relevant(news_item):
         f"{news_item.get('title', '')} "
         f"{news_item.get('description', '')}"
     ).casefold()
+
+    if any(re.search(pattern, text) for pattern in DEATH_EXCLUDE_PATTERNS):
+        # The channel excludes obituaries before scoring and categorization.
+        news_item["matched_topics"] = []
+        news_item["event_category"] = None
+        news_item.setdefault("event_locations", [])
+        return False
+
     # Word stems intentionally cover common Russian inflections for this baseline.
     matched_topics = [
         topic
