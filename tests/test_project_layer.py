@@ -65,6 +65,31 @@ def test_non_celebrity_conflict_stays_below_publication_threshold():
     assert filter_by_minimum_score([news], 2) == []
 
 
+def test_sports_official_incident_stays_below_publication_threshold():
+    news = item(
+        "47-летний регбийный судья найден мертвым в квартире",
+        "Спортсмен скончался в Москве, обстоятельства выясняются.",
+    )
+
+    assert is_relevant(news)
+    assert news["matched_topics"] == ["incidents"]
+
+    add_scores([news], calculate_score)
+
+    assert news["score"] == 0
+    assert filter_by_minimum_score([news], 2) == []
+
+
+def test_celebrity_incident_still_reaches_publication_threshold():
+    news = item("Известный певец скончался после тяжелой болезни")
+
+    assert is_relevant(news)
+    add_scores([news], calculate_score)
+
+    assert news["score"] >= 2
+    assert filter_by_minimum_score([news], 2) == [news]
+
+
 def test_filter_accepts_neutral_7days_event_wording():
     legal = item("Адвокат раскрыл подробности суда по делу об имуществе")
     incident = item("ЧП на репетиции: артист пострадал после падения")

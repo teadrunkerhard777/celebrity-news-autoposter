@@ -20,6 +20,21 @@ EVENT_DEDUP_SETTINGS = {
     "noise_prefixes": (
         "announce", "article", "company", "report", "source", "update",
     ),
+    # Terminal events use a compact title signature in addition to normal dedup.
+    "terminal_events": {
+        "death": ("смерт", "умер", "скончал", "погиб"),
+        "wedding": ("свадьб", "поженил", "вышла замуж", "женился"),
+        "divorce": ("развод", "развел", "развёл"),
+        "arrest": ("арест", "задержан", "задержали"),
+        "sentence": ("приговор", "осудили", "получил срок", "получила срок"),
+    },
+    "terminal_min_shared_entity_tokens": 2,
+    "terminal_noise_tokens": {
+        "актер", "актёр", "актриса", "артист", "артистка", "блогер",
+        "ведущий", "ведущая", "известен", "известна", "известно",
+        "назван", "названа", "новые", "певец", "певица", "подробности",
+        "причина", "сообщил", "сообщила", "стало",
+    },
 }
 
 # Diversity is a softer batch-level check applied after event deduplication.

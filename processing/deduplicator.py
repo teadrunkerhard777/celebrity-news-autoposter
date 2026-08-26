@@ -12,6 +12,9 @@ DEFAULTS = {
     "dense_match_tokens": 7,
     "stop_words": set(),
     "noise_prefixes": (),
+    "terminal_events": {},
+    "terminal_min_shared_entity_tokens": 2,
+    "terminal_noise_tokens": set(),
 }
 
 
@@ -99,10 +102,13 @@ def build_event_fingerprint(news_item, settings=None):
     body = news_item.get("article_text") or news_item.get("description", "")
     text = f"{news_item.get('title', '')} {body[:values['text_limit']]}"
     category = news_item.get("event_category")
+    terminal = _build_terminal_signature(news_item.get("title", ""), values)
 
     return {
         "categories": [category] if category else [],
         "tokens": sorted(_meaningful_tokens(text, values)),
+        "terminal_event": terminal["event"],
+        "terminal_entities": terminal["entities"],
         # Geography is optional project data, never a global requirement.
         "locations": sorted(set(news_item.get("event_locations", []))),
     }
@@ -120,10 +126,9 @@ def compare_event_fingerprints(first, second, settings=None):
         "token_overlap": 0.0,
         "token_jaccard": 0.0,
         "time_delta_hours": None,
+        "terminal_event": None,
+        "shared_terminal_entities": [],
     }
-
-    if first.get("source") and first.get("source") == second.get("source"):
-        return result
 
     first_date = _parse_datetime(first.get("published_at"))
     second_date = _parse_datetime(second.get("published_at"))
@@ -145,6 +150,34 @@ def compare_event_fingerprints(first, second, settings=None):
     )
 
     if not shared_categories:
+        return result
+
+    first_terminal = _read_terminal_signature(first, first_fp, values)
+    second_terminal = _read_terminal_signature(second, second_fp, values)
+    shared_terminal_entities = (
+        set(first_terminal["entities"])
+        & set(second_terminal["entities"])
+    )
+    same_terminal_event = (
+        first_terminal["event"]
+        and first_terminal["event"] == second_terminal["event"]
+    )
+
+    if (
+        same_terminal_event
+        and len(shared_terminal_entities)
+        >= values["terminal_min_shared_entity_tokens"]
+    ):
+        # A named person's terminal event remains the same across short updates.
+        return {
+            **result,
+            "is_duplicate": True,
+            "shared_categories": sorted(shared_categories),
+            "terminal_event": first_terminal["event"],
+            "shared_terminal_entities": sorted(shared_terminal_entities),
+        }
+
+    if first.get("source") and first.get("source") == second.get("source"):
         return result
 
     first_tokens = set(first_fp.get("tokens", []))
@@ -187,6 +220,56 @@ def _settings(settings):
 def _read_or_build(item, settings):
     fingerprint = item.get("event_fingerprint")
     return fingerprint if isinstance(fingerprint, dict) else build_event_fingerprint(item, settings)
+
+
+def _read_terminal_signature(item, fingerprint, settings):
+    event = fingerprint.get("terminal_event")
+    entities = fingerprint.get("terminal_entities")
+
+    if event and isinstance(entities, list):
+        return {"event": event, "entities": entities}
+
+    # Existing history fingerprints can derive the compact signature from title.
+    return _build_terminal_signature(item.get("title", ""), settings)
+
+
+def _build_terminal_signature(title, settings):
+    normalized = (title or "").casefold()
+    event = next(
+        (
+            name
+            for name, keywords in settings["terminal_events"].items()
+            if any(keyword in normalized for keyword in keywords)
+        ),
+        None,
+    )
+
+    if event is None:
+        return {"event": None, "entities": []}
+
+    event_tokens = {
+        token
+        for keyword in settings["terminal_events"][event]
+        for token in re.findall(r"[\w-]+", keyword, flags=re.UNICODE)
+    }
+    noise_tokens = set(settings["terminal_noise_tokens"])
+    proper_name_tokens = {
+        token.casefold().strip("_-")
+        for token in re.findall(r"[^\W\d_][\w-]*", title, flags=re.UNICODE)
+        if token[:1].isupper()
+    }
+    entities = sorted(
+        token
+        for token in proper_name_tokens
+        if len(token) >= 2
+        and token not in noise_tokens
+        and token not in settings["stop_words"]
+        and not any(
+            token.startswith(event_token) or event_token.startswith(token)
+            for event_token in event_tokens
+        )
+    )
+    return {"event": event, "entities": entities}
 
 
 def _meaningful_tokens(text, settings):
