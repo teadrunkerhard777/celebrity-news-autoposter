@@ -1,6 +1,7 @@
 """Telegram presentation for the celebrity-news project."""
 
 import re
+from datetime import datetime
 from html import escape
 
 from generation.text import fit_text_to_html_limit
@@ -14,6 +15,32 @@ DUPLICATE_INTRO_MAX_LENGTH = 220
 DUPLICATE_INTRO_MIN_SHARED_WORDS = 5
 DUPLICATE_INTRO_OVERLAP = 0.70
 BRAND_HASHTAG = "#ЗвёздныеБудни"
+
+RUSSIAN_MONTHS = (
+    "",
+    "января",
+    "февраля",
+    "марта",
+    "апреля",
+    "мая",
+    "июня",
+    "июля",
+    "августа",
+    "сентября",
+    "октября",
+    "ноября",
+    "декабря",
+)
+
+CATEGORY_LABELS = {
+    "scandals_conflicts": "звёздные разборки",
+    "legal_trouble": "суды",
+    "relationships": "отношения",
+    "unusual_behavior": "неожиданный поворот",
+    "money_property": "деньги и имущество",
+    "public_statements": "заявления",
+    "incidents": "происшествия",
+}
 
 EDITORIAL_HASHTAGS = {
     "scandals_conflicts": (
@@ -115,13 +142,24 @@ def _format(news_item, limit, complete_paragraphs):
     )
     source = escape(source_text)
     url = escape(str(news_item.get("url") or ""), quote=True)
+    source_link = f'<a href="{url}">{source}</a>' if url else source
+    category = CATEGORY_LABELS.get(news_item.get("event_category"))
+    source_line = f"📰 {source_link}"
+    if category:
+        source_line = f"{source_line}: {escape(category)}"
+
+    published_date = _format_published_date(news_item.get("published_at"))
+    metadata = [source_line]
+    if published_date:
+        metadata.insert(0, f"📅 {published_date}")
+
     link = (
         f'🔗 <a href="{url}">Читать источник</a>'
         if url
         else "🔗 Читать источник"
     )
     hashtags = " ".join(_editorial_hashtags(news_item))
-    footer = f"{hashtags}\n\n📰 {source}\n{link}"
+    footer = f"{'\n'.join(metadata)}\n\n{link}\n\n{hashtags}"
 
     title_budget = max(
         0,
@@ -155,6 +193,21 @@ def _format(news_item, limit, complete_paragraphs):
         return f"{header}\n\n{escape(summary)}\n\n{footer}"
 
     return f"{header}\n\n{footer}"
+
+
+def _format_published_date(value):
+    """Return a compact Russian date for the post metadata."""
+
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return ""
+
+    if not isinstance(value, datetime):
+        return ""
+
+    return f"{value.day} {RUSSIAN_MONTHS[value.month]} {value.year}"
 
 
 def _editorial_hashtags(news_item):

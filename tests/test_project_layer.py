@@ -105,6 +105,7 @@ def test_formatter_extracts_article_paragraphs_and_keeps_source_footer():
         "Короткое RSS-описание не должно использоваться.",
     )
     news["source"] = "StarHit"
+    news["event_category"] = "scandals_conflicts"
     news["article_text"] = """Фото, видео: соцсети
 
 Актриса публично ответила бывшему мужу & рассказала о конфликте.
@@ -126,12 +127,15 @@ def test_formatter_extracts_article_paragraphs_and_keeps_source_footer():
     assert "Фото, видео" not in post
     assert "Фото: личный архив" not in post
     assert "Четвертый содержательный абзац" not in post
-    assert "📰 StarHit" in post
+    assert "📅 2 января 2026" in post
+    assert ">StarHit</a>:" in post
+    assert "звёздные разборки" in post
     assert "Читать источник" in post
     assert 'href="https://example.test/item"' in post
     assert "#ЗвёздныеБудни" in post
-    assert post.index("По словам близких") < post.index("#ЗвёздныеБудни")
-    assert post.index("#ЗвёздныеБудни") < post.index("📰 StarHit")
+    assert post.index("По словам близких") < post.index("📅 2 января 2026")
+    assert post.index("📅 2 января 2026") < post.index("Читать источник")
+    assert post.index("Читать источник") < post.index("#ЗвёздныеБудни")
 
 
 def test_formatter_adds_scandal_editorial_hashtags():
